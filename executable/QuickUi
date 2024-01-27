@@ -1,0 +1,630 @@
+#!/bin/bash
+
+#@PRIMARY_MODULES
+if (( 1<2 )); then
+Clear="\033[0m";
+Blue="\033[1;34m";
+Genta="\033[1;35m";
+Green="\033[1;32m";
+Red="\033[1;31m";
+Yelo="\033[1;33m";
+Gora="\033[1;97m"
+BGRed="\033[1;41m";
+BGGreen="\033[1;42m";
+BGYelo="\033[1;43m";
+StatusRed="${BGRed}${Gora}";
+StatusGreen="${BGGreen}${Gora}";
+StatusYelo="${BGYelo}${Gora}";
+CircleIcon="● ";
+Success="SUCCESS";
+Failure="FAILED";
+Scribe=(
+  "${Blue}${CircleIcon}${Green}${CircleIcon}${Yelo}${CircleIcon}${Red}${CircleIcon}${Genta}${CircleIcon}    "
+  " ${Green}${CircleIcon}${Yelo}${CircleIcon}${Red}${CircleIcon}${Genta}${CircleIcon}${Blue}${CircleIcon}   "
+  "  ${Red}${CircleIcon}${Genta}${CircleIcon}${Yelo}${CircleIcon}${Blue}${CircleIcon}${Green}${CircleIcon}  "
+  "   ${Genta}${CircleIcon}${Blue}${CircleIcon}${Green}${Yelo}${CircleIcon}${CircleIcon}${Red}${CircleIcon} "
+  "    ${Blue}${CircleIcon}${Green}${CircleIcon}${Red}${CircleIcon}${Yelo}${CircleIcon}${Genta}${CircleIcon}"
+)
+fi
+spinner.setCursor(){
+  setterm -cursor "${1}";
+}
+_spinner(){
+    case $1 in
+    start ) 
+      let Cols=$(echo $COLUMNS)-${#2}-8
+      printf "%${Cols}s"
+      while true; do
+        for i in {0..4}; do
+          printf "\b\r\033[2K${Clear}${2} ${Scribe[i]}"
+          sleep 0.12
+        done
+        for i in {4..0}; do
+          printf "\b\r\033[2K${Clear}${2} ${Scribe[i]}"
+          sleep 0.12
+        done
+      done
+    ;;
+    stop ) 
+      [[ -z ${3} ]] && {
+      echo "error: spinner isn't running." &&
+      exit 1;
+      };
+     kill ${3} > /dev/null 2>&1
+     echo -en "\b${Clear} ➙ ";
+     [[ $2 -eq 0 ]] &&
+       echo -e "${StatusGreen} ${Success} ${Clear}" || {
+       echo -e "${StatusRed} ${Failure} ${Clear}" &&
+       exit 1;
+      };
+    ;;
+  esac  
+}
+spinner.start(){
+  [[ ${#} -eq 2 ]] ||
+  { echo "error: 'missing args'" && return 1; };
+  local UseCase="${1} '${Green}${2}${Clear}'..."
+  spinner.setCursor off
+  _spinner start "${UseCase}" &
+  _SpinnerPid="${!}"
+  disown
+}
+spinner.stop(){
+  _spinner stop ${?} ${_SpinnerPid};
+  unset ${_SpinnerPid};
+  spinner.setCursor on
+}
+setCursor(){
+  setterm -cursor "${1}";
+}
+screen.cols(){
+  stty size | awk '{print $2}'
+}
+screen.lines(){
+  stty size | awk '{print $1}'
+}
+screen.isSize(){
+  local ARGCols=${1};
+  local ARGLines=${2};
+  local CurrentCols="$(screen.cols)";
+  local CurrentLines="$(screen.lines)";
+  (( CurrentCols >= ARGCols && CurrentLines >= ARGLines ));
+}
+os.is_userland(){
+  ls '/host-rootfs/data/data/tech.ula/files/home' &> /dev/null;
+}
+os.is_termux(){
+  ls '/data/data/com.termux/files/' &> /dev/null;
+}
+os.is_windows(){
+  [[ "$(uname -a)" == *"windows"* ]]
+}
+os.is_shell.zsh(){
+  if os.is_userland; then
+    [[ "$(OurCodeBase-CShell)" == "zsh: "* ]];
+  else
+    [[ "${SHELL}" == *"zsh" ]];
+  fi
+}
+os.is_func(){
+  command -v "${1}" &> /dev/null;
+}
+text.randize(){
+  local array=("$@");
+  echo "${array[$(( RANDOM % ${#array[@]} ))]}";
+}
+text.isdigit(){
+  [[ "${1}" =~ ^[[:digit:]]+$ ]];
+}
+text.replace(){
+  local String="${1}";
+  local lastString="${2}";
+  local toString="${3}";
+  if [[ ! ${#} -eq 3 ]]; then
+      echo "error: 'missing args'";
+      return 1;
+  fi
+  echo "${String/${lastString}/"${toString}"}";
+}
+text.len(){
+  echo "${#1}";
+}
+text.len.strip(){
+  echo "${@}" | wc -l
+}
+text.startwith(){
+  [[ "${1}" == "${2}"* ]];
+}
+text.endswith(){
+  [[ "${1}" == *"${2}" ]];
+}
+text.contains(){
+  [[ "${1}" == *"${2}"* ]];
+}
+text.charCount(){
+  echo "${1}" | tr -cd "${2}" | wc -c
+}
+text.replace_charAt(){
+  local String="${1}";
+  local Pos="${2}";
+  local Char="${3}";
+  if [[ ! ${#} -eq 3 ]]; then
+      echo "error: 'missing args'";
+      return 1;
+  fi
+  local PreString="${String:0:Pos-1}";
+  local PostString="${String:Pos}";
+  echo "${PreString}${Char}${PostString}";
+}
+path.isdir(){
+  test -d "${1}";
+}
+path.isfile(){
+  test -f "${1}";
+}
+file.move(){
+  mv -f "${1}" "${2}" 2>/dev/null;
+}
+file.copy(){
+  cp -rf "${1}" "${2}" 2>/dev/null;
+}
+file.erase(){
+  truncate -s 0 "${1}";
+}
+file.pop(){
+  sed -i "${1}d" "${2}";
+}
+file.readlines.int(){
+  wc -l "${1}" | awk '{print $1}';
+}
+file.readline(){
+  sed -n "${1}p" "${2}";
+}
+file.readlines(){
+  local ARGFile="${1}";
+  local ARGFileCount=$(file.readlines.int "${ARGFile}");
+  STRIP=();
+  for ((i = 1; i <= ARGFileCount; i++)); do
+    STRIP+=("$(sed -n "${i}p" "${ARGFile}")");
+  done
+  export STRIP;
+  return;
+}
+file.readline.tall(){
+  awk 'length > max_length { max_length = length; max_line = $0 } END { print max_line }' "${1}";
+}
+file.replace.pos(){
+  sed -i "${2}c\\${1}" "${3}";
+}
+file.search(){
+  grep "${1}" "${2}";
+}
+file.search.pos(){
+  grep -n "${1}" "${2}" | cut -d: -f1 | head -n 1;
+}
+path.dirArray(){
+  local ARGDir=${1} && shift;
+  local UriFile=".Uri";
+  path.isdir "${ARGDir}" && {
+    if [[ "${*}" == *"--by-time"* ]]; then
+      ls -t "${ARGDir}" > "${UriFile}";
+      shift;
+    else ls "${ARGDir}" > "${UriFile}";
+    fi
+    if [[ "${*}" == *"--no-extension"* ]]; then
+      local UriChotuData="$(sed 's/\(.*\)\.\(.*\)/\1/' "${UriFile}")";
+      echo "${UriChotuData}" > "${UriFile}";
+    fi
+  } &&
+  file.readlines "${UriFile}" &&
+  rm "${UriFile}" &&
+  return 0;
+}
+file.append.hori(){
+  local String="${1}";
+  local Pos="${2}";
+  local ARGFile="${3}";
+  [[ ${#} -eq 3 ]] ||
+  { echo "error: 'missing args'" && return 1; };
+  local Vir="$(file.readline "${Pos}" "${ARGFile}")";
+  local Vir+="${String}";
+  file.replace.pos "${Vir}" "${Pos}" "${ARGFile}";
+  return;
+}
+file.append.vert(){
+  local String="${1}";
+  local Pos="${2}";
+  local ARGFile="${3}";
+  [[ ${#} -eq 3 ]] ||
+  { echo "error: 'missing args'" && return 1; };
+  local Pos="$(( Pos - 1 ))";
+  sed -i "${Pos}r /dev/stdin" "${ARGFile}" <<< "${String}";
+  return;
+}
+Clear="\033[0m";
+if (( 1<2 )); then
+Gora="\033[1;97m"
+BGRed="\033[1;41m";
+BGGreen="\033[1;42m";
+BGYelo="\033[1;43m";
+StatusRed="${BGRed}${Gora}";
+StatusGreen="${BGGreen}${Gora}";
+StatusYelo="${BGYelo}${Gora}";
+Source="'([^']*)'";
+fi
+Red="\033[1;31m";
+Green="\033[1;32m";
+Yelo="\033[1;33m";
+say.gencolor(){
+  local STRIP=(
+    "\033[1;31m"
+    "\033[1;32m"
+    "\033[1;33m"
+    "\033[1;34m"
+    "\033[1;35m"
+    "\033[1;36m"
+  );
+  echo "${STRIP[$(( RANDOM % ${#STRIP[@]} ))]}";
+  return 0;
+}
+say(){
+  local String="${1}";
+  local STRIP=(${String});
+  local String='';
+  for Uri in "${STRIP[@]}"
+  do
+    if [[ "${Uri}" =~ ${Source} ]]; then
+      local Color="$(say.gencolor)";
+      local String+="${Color}${Uri}${Clear} ";
+    else local String+="${Uri} ";
+    fi
+  done
+  echo -e "${String}";
+  return 0;
+}
+_status(){
+  case "${1}" in
+    -error) 
+      local Color="\033[1;31m";
+      local StatusColor="${StatusRed}";
+      ;;
+    -success) 
+      local Color="\033[1;32m";
+      local StatusColor="${StatusGreen}";
+      ;;
+    -warn) 
+      local Color="\033[1;33m";
+      local StatusColor="${StatusYelo}";
+      ;;
+  esac
+  local String="${2}";
+  local xSTRIP=(${String});
+  local String='';
+  for Uri in "${xSTRIP[@]}"
+  do
+    if [[ "${Uri}" =~ ${Source} ]]; then
+      local String+="${Color}${Uri}${Clear} ";
+    else local String+="${Uri} ";
+    fi
+  done
+  echo -e "${StatusColor} INFO ${Clear} ➙ ${String}";
+  return 0;
+}
+say.error(){
+  _status -error "${@}";
+}
+say.warn(){
+  _status -warn "${@}";
+}
+say.success(){
+  _status -success "${@}";
+}
+say.checkStatus(){
+  if [[ "${1}" == 0 ]]; then
+    echo -e " ➙ ${StatusGreen} SUCCESS ${Clear}";
+  else
+    echo -e " ➙ ${StatusRed} FAILED ${Clear}";
+    exit 1;
+  fi
+}
+#@SECONDARY_MODULES
+if (( 1<2 )); then
+Dir="$(dirname "${BASH_SOURCE[0]}")";
+fi
+askChoice='';
+askReply='';
+ask.case(){
+  echo -ne "\n    ${1}";
+  read -p " ? [Y/n] " ARGS;
+  echo;
+  case "${ARGS}" in
+    y|Y|'') return 0;;
+    n|N) { say.error "Process Aborted.\n" && exit 1; };;
+    *) { say.error "You have to enter only \n\t\t'Y' for Yes & \n\t\t'n' for No.\n" && exit 1; };;
+  esac
+}
+ask.choice(){
+  PS3="
+  ${1} > ";
+  shift;
+  local ARGs=("${@}");
+  echo;
+  select ARG in "${ARGs[@]}"
+  do
+    text.isdigit "${REPLY}" || {
+      say.error "You can only input 'digits'.\n" && exit 1;
+    };
+    [[ "${REPLY}" -gt "${#ARGs[@]}" ]] &&
+    say.error "You should input correct digits.\n" && exit 1;
+    askChoice="${ARG}";
+    askReply="${REPLY}";
+    break;
+  done
+}
+if (( 1<2 )); then
+Dir="$(dirname "${BASH_SOURCE[0]}")";
+fi
+inspect.ScreenSize(){
+  local ARGCols="${1}";
+  local ARGRou="${2}";
+  screen.isSize "${ARGCols}" "${ARGRou}" || {
+    say.warn "Your Screen Size\n
+    \t\tColumns: '$(screen.cols)'\n
+    \t\tLines: '$(screen.lines)'";
+    say.success "Require Screen Size\n
+    \t\tColumns: '${ARGCols}'\n
+    \t\tLines: '${ARGRou}'";
+    say.error "Please 'ZoomOut' your Terminal\n
+    \t\tThen run again.";
+    exit 1;
+  };
+}
+inspect.is_func(){
+  os.is_func "${1}" || {
+    say.error "There is no '${1}'\n
+    \t\tShould to install it on your OS.";
+    exit 1;
+  };
+}
+#@TERTIARY_MODULES
+if (( 1<2 )); then
+Dir="$(dirname "${BASH_SOURCE[0]}")";
+fi
+repo.size(){
+  inspect.is_func 'curl';
+  local Api="$(echo "${1}" | awk '{print $1}')";
+  local ApiSize=$(curl "https://api.github.com/repos/${Api}" 2> /dev/null | grep size | head -1 | tr -dc '[:digit:]');
+  echo $(( ApiSize/1024 ));
+}
+repo.chart(){
+  inspect.ScreenSize '50' '12';
+  local ARGs=("${@}");
+  local PuraSize=0;
+  setCursor off;
+    echo -e "
+  ╭─ Clone ──────────────────────────────────────╮";
+    echo -e "  │                                              │";
+    printf "  │  %-34s %-7s  │\n" 'Repository' 'Size';
+    printf "  │  %-34s %-7s  │\n" '──────────────────────────────────' '───────';
+  for ARG in "${ARGs[@]}"
+  do
+    local Api="$(echo "${ARG}" | awk '{print $1}')";
+    local ApiSize="$(repo.size "${ARG}")";
+      printf "  │  ${Green}%-34s${Clear} ${Yelo}%3s${Clear} %-3s  │\n" "${Api}" "${ApiSize}" 'MiB';
+    local PuraSize=$(( PuraSize+ApiSize ));
+  done
+    echo -e "  │                                              │";
+    echo -e "  ╰──────────────────────────────────────────────╯\n";
+    echo -e "  ╭─ TOTAL ────────────────────╮";
+  printf "  │  %14s: ${Green}%4s${Clear} %3s  │\n" "Cloning Size" "${PuraSize}" 'MiB';
+  echo -e "  ╰────────────────────────────╯";
+  setCursor on;
+  return 0;
+}
+repo.clone(){
+  inspect.is_func 'git';
+  local ARGs=("${@}");
+  repo.chart "${ARGs[@]}";
+  if ask.case "Cloning Repository"; then
+    for ARG in "${ARGs[@]}"
+    do
+      local Api="$(echo "${ARG}" | awk '{print $1}')";
+      local ApiPath="$(echo "${ARG}" | awk '{print $2}')";
+      local Url="https://github.com/${Api}.git";
+      spinner.start "Cloning" "${Api}";
+      [[ -z "${ApiPath}" ]] && 
+      git clone --depth=1 "${Url}" 2> /dev/null ||
+      git clone --depth=1 "${Url}" "${ApiPath}" 2> /dev/null;
+      spinner.stop;
+    done
+    echo;
+  fi
+  return;
+}
+if (( 1<2 )); then
+Dir="$(dirname "${BASH_SOURCE[0]}")";
+fi
+pkg.size(){
+  [[ ${#} -eq 2 ]] ||
+  { echo "error: 'missing args'" && return 1; };
+  case "${1}" in
+    'dnload') local SizeSource="$(apt show "${2}" 2> /dev/null | grep 'Download-Size:')";;
+    'install') local SizeSource="$(apt show "${2}" 2> /dev/null | grep 'Installed-Size:')";;
+  esac
+  local Size="$(echo "${SizeSource}" | awk '{print $2}')";
+  local SizeUnit="$(echo "${SizeSource}" | awk '{print $3}')";
+  local Size="${Size%%.*}";
+  case "${SizeUnit}" in
+    'MB') echo "${Size}";;
+    'kB') echo "$(( Size/1024 ))";;
+    'B') echo "$(( Size/1048576 ))";;
+  esac
+}
+pkg.chart(){
+  inspect.ScreenSize '62' '12';
+  local ARGs=("${@}");
+  local PuraSizeDL=0;
+  local PuraSizeIN=0;
+  setCursor off;
+    echo -e "
+  ╭─ Packages ─────────────────────────────────────────────╮";
+    echo -e "  │                                                        │";
+    printf "  │  %-25s %-10s %-7s %-7s  │\n" 'Package' 'Version' 'DLSize' 'INSize';
+    printf "  │  %-25s %-10s %-7s %-7s  │\n" '─────────────────────────' '──────────' '───────' '───────';
+  for ARG in "${ARGs[@]}"
+  do
+    local PackageSource="$(apt show "${ARG}" 2> /dev/null)";
+    local PackageVar="$(echo "${PackageSource}" | grep 'Package:' | awk '{print $2}')";
+    local PackageVersion="$(echo "${PackageSource}" | grep 'Version:' | awk '{print $2}' | awk -F'-' '{print $1}' | awk -F'+' '{print $1}' | awk -F'~' '{print $1}')";
+    local PackageSizeDL="$(pkg.size 'dnload' "${ARG}")";
+    local PackageSizeIN="$(pkg.size 'install' "${ARG}")";
+      printf "  │  ${Green}%-25s${Clear} ${Yelo}%-10s${Clear} ${Yelo}%3s${Clear} %-3s ${Yelo}%3s${Clear} %-3s  │\n" "${PackageVar}" "${PackageVersion}" "${PackageSizeDL}" 'MiB' "${PackageSizeIN}" 'MiB';
+    local PuraSizeDL=$(( PuraSizeDL + PackageSizeDL ));
+    local PuraSizeIN=$(( PuraSizeIN + PackageSizeIN ));
+  done
+    echo -e "  │                                                        │";
+    echo -e "  ╰────────────────────────────────────────────────────────╯\n";
+    echo -e "  ╭─ TOTAL ────────────────────╮";
+  printf "  │  %14s: ${Green}%4s${Clear} %3s  │\n" "Download Size" "${PuraSizeDL}" 'MiB';
+  printf "  │  %14s: ${Yelo}%4s${Clear} %3s  │\n" "Installed Size" "${PuraSizeIN}" 'MiB';
+  echo -e "  ╰────────────────────────────╯";
+  setCursor on;
+  return;
+}
+pkg.install(){
+  local ARGs=("${@}");
+  pkg.chart "${ARGs[@]}";
+  if ask.case 'Install Packages'; then
+    for ARG in "${ARGs[@]}"
+    do
+      spinner.start 'Installing' "${ARG}";
+      if os.is_termux || os.is_shell.zsh; then
+        apt-get install -qq "${ARG}" > /dev/null;
+      else
+        sudo apt-get install -qq "${ARG}" > /dev/null;
+      fi
+      spinner.stop;
+    done
+  fi
+  echo;
+  return;
+}
+#@OTHER_MODULES
+QuickUiDir="${HOME}/.QuickUi";
+os.is_userland &&
+StyleDir="/host-rootfs/data/data/tech.ula/files/home/.termux";
+os.is_termux &&
+StyleDir="${HOME}/.termux";
+banner(){
+  echo "
+╔═╗╔╦╗╦═╗╔═╗╔╗╔╔═╗╔═╗
+╚═╗ ║ ╠╦╝╠═╣║║║║ ╦║╣ 
+╚═╝ ╩ ╩╚═╩ ╩╝╚╝╚═╝╚═╝
+  ";
+  echo "Start coding with yourself.";
+  echo "---------------------------";
+}
+banner;
+execute_zsh_auto(){
+  path.isdir "${HOME}/.zsh-autocomplete" &&
+  repo.clone "marlonrichert/zsh-autocomplete ${HOME}/.zsh-autocomplete";
+  { grep 'zsh-autocomplete.plugin.zsh' "${HOME}/.zshrc" &>/dev/null; } &&
+  {
+    say.warn "You have already zsh autocomplete.";
+    return 1;
+  };
+  echo "source ${HOME}/.zsh-autocomplete/zsh-autocomplete.plugin.zsh" >> "${HOME}/.zshrc";
+  echo;
+  say.success "Successly installed zsh autocomplete.\n";
+  say.warn "Please restart your Terminal.\n";
+}
+execute_zsh_syntax(){
+  path.isdir "${HOME}/.zsh-syntax-highlighting" &&
+  repo.clone "zsh-users/.zsh-syntax-highlighting ${HOME}/.zsh-syntax-highlighting";
+  { grep 'zsh-syntax-highlighting.zsh' "${HOME}/.zshrc" &>/dev/null; } &&
+  {
+    say.warn "You have already zsh syntax highlighting.";
+    return 1;
+  };
+  echo "source ${HOME}/.zsh-syntax-highlighting/zsh-syntax-highlighting.zsh" >> "${HOME}/.zshrc";
+  echo;
+  say.success "Successly installed zsh syntax.\n";
+  say.warn "Please restart your Terminal.\n";
+}
+execute_oh_zsh(){
+  path.isdir "${HOME}/.oh-my-zsh" || {
+    repo.clone "ohmyzsh/ohmyzsh ${HOME}/.oh-my-zsh";
+    mv "${HOME}/.zshrc" "${HOME}/.zshrc.bak.$(date +%Y.%m.%d-%H:%M:%S)";
+    cp "${HOME}/.oh-my-zsh/templates/zshrc.zsh-template" "${HOME}/.zshrc";
+  };
+  path.dirArray "${HOME}/.oh-my-zsh/themes" --no-extension;
+  ask.choice 'Choose One' "${STRIP[@]}";
+  sed -i '/^ZSH_THEME/d' "${HOME}/.zshrc";
+  sed -i "1iZSH_THEME='${askChoice}'" "${HOME}/.zshrc";
+  say.success "Please restart your Terminal.\n";
+}
+execute_zsh(){
+  os.is_shell.zsh && {
+    say.warn "You have already 'zsh' installed.";
+    return 1;
+  };
+  pkg.install 'zsh';
+  os.is_userland && {
+    echo 'su' >> /home/user/.bashrc;
+    echo '/bin/zsh' >> /root/.bashrc;
+  };
+  if os.is_termux; then
+    chsh -s zsh;
+  elif os.is_userland; then
+    echo 'su' >> /home/user/.bashrc;
+    echo '/bin/zsh' >> /root/.bashrc;
+  else
+    say.error "No function is available for your Os.\n";
+    return 1;
+  fi
+  say.success "Please restart your Terminal.\n";
+}
+colorsAndFonts(){
+  local ARGFolder="${1}";
+  local ARGFile="${2}";
+  path.dirArray "${QuickUiDir}/${ARGFolder}";
+  ask.choice 'Choose One' "${STRIP[@]}";
+  cp -rf "${QuickUiDir}/${ARGFolder}/${askChoice}" "${StyleDir}/${ARGFile}";
+  if os.is_termux; then
+    termux-reload-settings;
+  elif os.is_userland; then
+    echo && say.success "Please restart userland session.\n";
+  else
+    echo && say.error "No function is available for your Os.\n";
+  fi
+}
+path.isdir "${QuickUiDir}/fonts" || {
+  os.is_func 'git' || pkg.install 'git';
+  path.isdir "${QuickUiDir}" || mkdir -p "${QuickUiDir}";
+  cd "${QuickUiDir}";
+  path.isdir "${QuickUiDir}/.git" || git init &>/dev/null;
+  git remote add origin https://github.com/OurCodeBase/QuickUi.git
+  git config core.sparseCheckout true
+  echo 'fonts/**' >> .git/info/sparse-checkout
+  echo 'colors/**' >> .git/info/sparse-checkout
+  git pull origin master &>/dev/null
+};
+_ASK_CHOICE=(
+  'Install Fonts'
+  'Install Colors'
+  'Install Zsh'
+  'Install Oh-My-Zsh'
+  'Install Zsh Syntax Highlighting'
+  'Install Zsh Autocompletion'
+  'Exit'
+)
+ask.choice 'Choose One' "${_ASK_CHOICE[@]}";
+case "${askReply}" in
+  1) colorsAndFonts 'fonts' 'font.ttf';;
+  2) colorsAndFonts 'colors' 'colors.properties';;
+  3) execute_zsh;;
+  4) execute_oh_zsh;;
+  5) execute_zsh_syntax;;
+  6) execute_zsh_auto;;
+  7) exit 1;;
+esac
